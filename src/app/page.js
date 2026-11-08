@@ -372,6 +372,7 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLoadingView, setIsLoadingView] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(false);
+  const [loadingAction, setLoadingAction] = useState(null);
 
   // Estados principais de dados (carregados do Supabase via /api/bootstrap)
   const [currentUser, setCurrentUser] = useState(null);
@@ -582,10 +583,13 @@ export default function App() {
   }, []);
 
   const handleLogout = async () => {
+    setLoadingAction('logout');
     try {
       await apiFetch('/api/auth/logout', { method: 'POST', skipAuthRedirect: true });
     } catch {
       // Mesmo com falha no servidor, a sessão local é encerrada
+    } finally {
+      setLoadingAction(null);
     }
     resetSessionState();
     setLoginPassword('');
@@ -1107,6 +1111,7 @@ export default function App() {
       addToast('Já existe uma etapa com este nome no Kanban.', 'error');
       return;
     }
+    setLoadingAction('addStage');
     try {
       const data = await apiFetch('/api/kanban/etapas', {
         method: 'POST',
@@ -1118,6 +1123,8 @@ export default function App() {
       addToast(`Etapa "${stageName}" adicionada ao Kanban!`, 'success');
     } catch (err) {
       handleApiError(err, 'Erro ao adicionar etapa ao Kanban.');
+    } finally{
+      setLoadingAction(null);
     }
   };
 
@@ -1248,6 +1255,7 @@ export default function App() {
       value: Number(d.value) || 0,
       description: d.description || ''
     };
+    setLoadingAction('saveProject');
     try {
       if (projectModal.mode === 'create') {
         const data = await apiFetch('/api/projetos', { method: 'POST', body: payload });
@@ -1262,6 +1270,8 @@ export default function App() {
       setProjectModal({ open: false, mode: 'create', data: null });
     } catch (err) {
       handleApiError(err, 'Erro ao salvar o projeto.');
+    } finally {
+      setLoadingAction(null);
     }
   };
 
@@ -1506,6 +1516,7 @@ export default function App() {
       companyId: d.companyId || null,
       userId: d.userId || currentUser?.id || null
     };
+    setLoadingAction('saveAppointment');
     try {
       if (appointmentModal.mode === 'create') {
         const data = await apiFetch('/api/agenda', { method: 'POST', body: payload });
@@ -1519,6 +1530,8 @@ export default function App() {
       setAppointmentModal({ open: false, mode: 'create', data: null });
     } catch (err) {
       handleApiError(err, 'Erro ao salvar o compromisso.');
+    } finally {
+      setLoadingAction(null);
     }
   };
 
@@ -1864,6 +1877,7 @@ export default function App() {
       notes: d.notes || '',
       status: d.status
     };
+    setLoadingAction('saveTask');
     try {
       if (taskModal.mode === 'create') {
         const data = await apiFetch('/api/tasks', { method: 'POST', body: payload });
@@ -1877,6 +1891,8 @@ export default function App() {
       setTaskModal({ open: false, mode: 'create', data: null });
     } catch (err) {
       handleApiError(err, 'Erro ao salvar a task.');
+    } finally {
+      setLoadingAction(null);
     }
   };
 
@@ -2194,7 +2210,7 @@ export default function App() {
       slug: d.slug || createSlug(d.tradeName || d.name),
       hasSavedPassword: d.hasSavedPassword || Boolean(d.initialPassword)
     };
-
+setLoadingAction('saveCompany');
     try {
       if (companyModal.mode === 'create') {
         const res = await apiFetch('/api/empresas', {
@@ -2224,6 +2240,8 @@ export default function App() {
       setCompanyModal({ open: false, mode: 'create', data: null });
     } catch (err) {
       handleApiError(err, 'Erro ao salvar empresa.');
+    } finally {
+      setLoadingAction(null);
     }
   };
 
@@ -2492,7 +2510,7 @@ export default function App() {
       ...d,
       hasSavedPassword: d.hasSavedPassword || Boolean(d.passwordInput)
     };
-
+setLoadingAction('saveUser');
     try {
       if (userModal.mode === 'create') {
         const res = await apiFetch('/api/usuarios', {
@@ -2519,6 +2537,8 @@ export default function App() {
       setUserModal({ open: false, mode: 'create', data: null });
     } catch (err) {
       handleApiError(err, 'Erro ao salvar usuário.');
+    } finally {
+      setLoadingAction(null);
     }
   };
 
@@ -2723,7 +2743,7 @@ export default function App() {
       addToast('Informe descrição, empresa relacionada e um valor maior que R$ 0,00.', 'error');
       return;
     }
-
+setLoadingAction('saveFinance');
     try {
       if (financeModal.mode === 'create' && d.generateInstallments && previewInstallments.length > 1) {
         const res = await apiFetch('/api/financeiro', {
@@ -2781,6 +2801,8 @@ export default function App() {
       setFinanceModal({ open: false, mode: 'create', data: null });
     } catch (err) {
       handleApiError(err, 'Erro ao salvar lançamento financeiro.');
+    } finally {
+      setLoadingAction(null);
     }
   };
 
@@ -3007,34 +3029,38 @@ export default function App() {
                   className="bg-[#060A12] border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
                 />
                 <button
-                  type="button"
-                  onClick={async () => {
-                    if (!newCatInput.trim()) return;
-                    const catName = newCatInput.trim();
-                    try {
-                      const res = await apiFetch('/api/financeiro/categorias', {
-                        method: 'POST',
-                        body: { type: catGroupKey, name: catName }
-                      });
-                      const createdCat = res?.category || {
-                        id: 'cat_' + Date.now(),
-                        name: catName,
-                        subcategories: ['Geral']
-                      };
-                      setCategories((prev) => ({
-                        ...prev,
-                        [catGroupKey]: [...prev[catGroupKey], createdCat]
-                      }));
-                      setNewCatInput('');
-                      addToast('Categoria adicionada!', 'success');
-                    } catch (err) {
-                      handleApiError(err, 'Erro ao cadastrar categoria.');
-                    }
-                  }}
-                  className="px-3.5 py-2 rounded-xl bg-cyan-500 text-slate-950 font-bold text-xs"
-                >
-                  + Categoria
-                </button>
+  type="button"
+  disabled={loadingAction === 'addCat'}
+  onClick={async () => {
+    if (!newCatInput.trim()) return;
+    const catName = newCatInput.trim();
+    setLoadingAction('addCat');
+    try {
+      const res = await apiFetch('/api/financeiro/categorias', {
+        method: 'POST',
+        body: { type: catGroupKey, name: catName }
+      });
+      const createdCat = res?.category || {
+        id: 'cat_' + Date.now(),
+        name: catName,
+        subcategories: ['Geral']
+      };
+      setCategories((prev) => ({
+        ...prev,
+        [catGroupKey]: [...prev[catGroupKey], createdCat]
+      }));
+      setNewCatInput('');
+      addToast('Categoria adicionada!', 'success');
+    } catch (err) {
+      handleApiError(err, 'Erro ao cadastrar categoria.');
+    } finally {
+      setLoadingAction(null);
+    }
+  }}
+  className="px-3.5 py-2 rounded-xl bg-cyan-500 text-slate-950 font-bold text-xs disabled:opacity-60 flex items-center gap-1.5"
+>
+  {loadingAction === 'addCat' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : '+ Categoria'}
+</button>
               </div>
             </div>
 
@@ -3065,35 +3091,39 @@ export default function App() {
                       className="flex-1 bg-[#0B1221] border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white"
                     />
                     <button
-                      type="button"
-                      onClick={async () => {
-                        const val = (newSubcatInputs[cat.id] || '').trim();
-                        if (!val) return;
-                        try {
-                          await apiFetch('/api/financeiro/categorias', {
-                            method: 'POST',
-                            body: {
-                              action: 'create_subcategory',
-                              categoryId: cat.id,
-                              name: val
-                            }
-                          });
-                          setCategories((prev) => ({
-                            ...prev,
-                            [catGroupKey]: prev[catGroupKey].map((c) =>
-                              c.id === cat.id ? { ...c, subcategories: [...c.subcategories, val] } : c
-                            )
-                          }));
-                          setNewSubcatInputs((prev) => ({ ...prev, [cat.id]: '' }));
-                          addToast('Subcategoria incluída!', 'success');
-                        } catch (err) {
-                          handleApiError(err, 'Erro ao incluir subcategoria.');
-                        }
-                      }}
-                      className="px-2.5 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-bold"
-                    >
-                      +
-                    </button>
+  type="button"
+  disabled={loadingAction === `addSub_${cat.id}`}
+  onClick={async () => {
+    const val = (newSubcatInputs[cat.id] || '').trim();
+    if (!val) return;
+    setLoadingAction(`addSub_${cat.id}`);
+    try {
+      await apiFetch('/api/financeiro/categorias', {
+        method: 'POST',
+        body: {
+          action: 'create_subcategory',
+          categoryId: cat.id,
+          name: val
+        }
+      });
+      setCategories((prev) => ({
+        ...prev,
+        [catGroupKey]: prev[catGroupKey].map((c) =>
+          c.id === cat.id ? { ...c, subcategories: [...c.subcategories, val] } : c
+        )
+      }));
+      setNewSubcatInputs((prev) => ({ ...prev, [cat.id]: '' }));
+      addToast('Subcategoria incluída!', 'success');
+    } catch (err) {
+      handleApiError(err, 'Erro ao incluir subcategoria.');
+    } finally {
+      setLoadingAction(null);
+    }
+  }}
+  className="px-2.5 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-bold disabled:opacity-60 flex items-center justify-center"
+>
+  {loadingAction === `addSub_${cat.id}` ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : '+'}
+</button>
                   </div>
                 </div>
               ))}
@@ -3139,7 +3169,7 @@ export default function App() {
       addToast('Informe o nome e o link do repositório no GitHub.', 'error');
       return;
     }
-
+setLoadingAction('saveRepo');
     try {
       if (repoModal.mode === 'create') {
         const res = await apiFetch('/api/repositorios', {
@@ -3161,6 +3191,9 @@ export default function App() {
       setRepoModal({ open: false, mode: 'create', data: null });
     } catch (err) {
       handleApiError(err, 'Erro ao salvar repositório.');
+    }
+    finally {
+      setLoadingAction(null);
     }
   };
 
@@ -3481,12 +3514,13 @@ export default function App() {
             </div>
           </div>
           <button
-            type="button"
-            onClick={handleLogout}
-            className="w-full mt-1 py-1.5 rounded-lg bg-slate-800/80 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <LogOut className="w-3.5 h-3.5" /> Sair do Sistema
-          </button>
+  type="button"
+  disabled={loadingAction === 'logout'}
+  onClick={handleLogout}
+  className="w-full mt-1 py-1.5 rounded-lg bg-slate-800/80 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 disabled:opacity-60 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-colors"
+>
+  {loadingAction === 'logout' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <LogOut className="w-3.5 h-3.5" />} Sair do Sistema
+</button>
         </div>
       </aside>
 
@@ -3547,12 +3581,13 @@ export default function App() {
                   </div>
                 </div>
                 <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="w-full mt-1 py-1.5 rounded-lg bg-slate-800/80 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-colors"
-                >
-                  <LogOut className="w-3.5 h-3.5" /> Sair do Sistema
-                </button>
+  type="button"
+  disabled={loadingAction === 'logout'}
+  onClick={handleLogout}
+  className="w-full mt-1 py-1.5 rounded-lg bg-slate-800/80 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 disabled:opacity-60 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-colors"
+>
+  {loadingAction === 'logout' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <LogOut className="w-3.5 h-3.5" />} Sair do Sistema
+</button>
               </div>
             </div>
           </div>
@@ -3606,11 +3641,13 @@ export default function App() {
                 className="flex-1 bg-[#070C17] border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-400"
               />
               <button
-                type="submit"
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-xs font-bold text-white shrink-0"
-              >
-                + Adicionar
-              </button>
+  type="submit"
+  disabled={loadingAction === 'addStage'}
+  className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 disabled:opacity-60 text-xs font-bold text-white shrink-0 flex items-center gap-1.5"
+>
+  {loadingAction === 'addStage' && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+  + Adicionar
+</button>
             </form>
 
             <div className="space-y-2 overflow-y-auto flex-1 pr-1">
@@ -3816,11 +3853,13 @@ export default function App() {
                   Cancelar
                 </button>
                 <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-xs font-bold text-white"
-                >
-                  Salvar Task
-                </button>
+  type="submit"
+  disabled={loadingAction === 'saveTask'}
+  className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 disabled:opacity-60 text-xs font-bold text-white flex items-center gap-1.5"
+>
+  {loadingAction === 'saveTask' && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+  Salvar Task
+</button>
               </div>
             </form>
           </div>
@@ -3992,11 +4031,13 @@ export default function App() {
                   Cancelar
                 </button>
                 <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-xs font-bold text-white"
-                >
-                  Salvar Projeto
-                </button>
+  type="submit"
+  disabled={loadingAction === 'saveProject'}
+  className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 disabled:opacity-60 text-xs font-bold text-white flex items-center gap-1.5"
+>
+  {loadingAction === 'saveProject' && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+  Salvar Projeto
+</button>
               </div>
             </form>
           </div>
@@ -4160,11 +4201,13 @@ export default function App() {
                   Cancelar
                 </button>
                 <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-xs font-bold text-white"
-                >
-                  Salvar Compromisso
-                </button>
+  type="submit"
+  disabled={loadingAction === 'saveAppointment'}
+  className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 disabled:opacity-60 text-xs font-bold text-white flex items-center gap-1.5"
+>
+  {loadingAction === 'saveAppointment' && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+  Salvar Compromisso
+</button>
               </div>
             </form>
           </div>
@@ -4414,31 +4457,35 @@ export default function App() {
                       className="flex-1 bg-[#070C17] border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
                     />
                     <button
-                      type="button"
-                      onClick={async () => {
-                        if (!newIndustryName.trim()) return;
-                        const val = newIndustryName.trim();
-                        try {
-                          const res = await apiFetch('/api/empresas', {
-                            method: 'POST',
-                            body: { action: 'create_industry', name: val }
-                          });
-                          const nameAdded = res?.industry || val;
-                          setIndustries((prev) => (prev.includes(nameAdded) ? prev : [...prev, nameAdded]));
-                          setCompanyModal((prev) => ({
-                            ...prev,
-                            data: { ...prev.data, industry: nameAdded }
-                          }));
-                          setNewIndustryName('');
-                          addToast(`Ramo "${nameAdded}" adicionado e selecionado!`, 'success');
-                        } catch (err) {
-                          handleApiError(err, 'Erro ao cadastrar novo ramo de atividade.');
-                        }
-                      }}
-                      className="px-3 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 text-xs font-bold border border-cyan-500/30"
-                    >
-                      + Incluir
-                    </button>
+  type="button"
+  disabled={loadingAction === 'addIndustry'}
+  onClick={async () => {
+    if (!newIndustryName.trim()) return;
+    const val = newIndustryName.trim();
+    setLoadingAction('addIndustry');
+    try {
+      const res = await apiFetch('/api/empresas', {
+        method: 'POST',
+        body: { action: 'create_industry', name: val }
+      });
+      const nameAdded = res?.industry || val;
+      setIndustries((prev) => (prev.includes(nameAdded) ? prev : [...prev, nameAdded]));
+      setCompanyModal((prev) => ({
+        ...prev,
+        data: { ...prev.data, industry: nameAdded }
+      }));
+      setNewIndustryName('');
+      addToast(`Ramo "${nameAdded}" adicionado e selecionado!`, 'success');
+    } catch (err) {
+      handleApiError(err, 'Erro ao cadastrar novo ramo de atividade.');
+    } finally {
+      setLoadingAction(null);
+    }
+  }}
+  className="px-3 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 text-xs font-bold border border-cyan-500/30 disabled:opacity-60 flex items-center gap-1.5"
+>
+  {loadingAction === 'addIndustry' ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : '+ Incluir'}
+</button>
                   </div>
                 </div>
               </div>
@@ -4793,11 +4840,13 @@ export default function App() {
                   Cancelar
                 </button>
                 <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-xs font-bold text-white"
-                >
-                  Salvar Cadastro
-                </button>
+  type="submit"
+  disabled={loadingAction === 'saveCompany'}
+  className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 disabled:opacity-60 text-xs font-bold text-white flex items-center gap-1.5"
+>
+  {loadingAction === 'saveCompany' && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+  Salvar Cadastro
+</button>
               </div>
             </form>
           </div>
@@ -4990,11 +5039,13 @@ export default function App() {
                   Cancelar
                 </button>
                 <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-xs font-bold text-white"
-                >
-                  Salvar Usuário e Permissões
-                </button>
+  type="submit"
+  disabled={loadingAction === 'saveUser'}
+  className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 disabled:opacity-60 text-xs font-bold text-white flex items-center gap-1.5"
+>
+  {loadingAction === 'saveUser' && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+  Salvar Usuário e Permissões
+</button>
               </div>
             </form>
           </div>
@@ -5345,11 +5396,13 @@ export default function App() {
                   Cancelar
                 </button>
                 <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-xs font-bold text-white"
-                >
-                  Salvar Lançamento
-                </button>
+  type="submit"
+  disabled={loadingAction === 'saveFinance'}
+  className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 disabled:opacity-60 text-xs font-bold text-white flex items-center gap-1.5"
+>
+  {loadingAction === 'saveFinance' && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+  Salvar Lançamento
+</button>
               </div>
             </form>
           </div>
@@ -5546,11 +5599,13 @@ export default function App() {
                   Cancelar
                 </button>
                 <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-xs font-bold text-white"
-                >
-                  Salvar Registro
-                </button>
+  type="submit"
+  disabled={loadingAction === 'saveRepo'}
+  className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 disabled:opacity-60 text-xs font-bold text-white flex items-center gap-1.5"
+>
+  {loadingAction === 'saveRepo' && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+  Salvar Registro
+</button>
               </div>
             </form>
           </div>
@@ -5567,24 +5622,34 @@ export default function App() {
             <p className="text-xs text-slate-300 mt-2 leading-relaxed">{confirmDialog.description}</p>
             <div className="flex justify-end gap-2 mt-6">
               <button
-                onClick={() => setConfirmDialog((prev) => ({ ...prev, open: false }))}
-                className="px-4 py-2 rounded-xl bg-slate-800 text-xs font-semibold text-slate-300"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => {
-                  if (confirmDialog.onConfirm) confirmDialog.onConfirm();
-                  setConfirmDialog((prev) => ({ ...prev, open: false }));
-                }}
-                className={`px-4 py-2 rounded-xl text-xs font-bold text-white ${
-                  confirmDialog.variant === 'danger'
-                    ? 'bg-rose-600 hover:bg-rose-500'
-                    : 'bg-gradient-to-r from-cyan-500 to-blue-600'
-                }`}
-              >
-                {confirmDialog.confirmLabel}
-              </button>
+  disabled={loadingAction === 'confirmDialog'}
+  onClick={() => setConfirmDialog((prev) => ({ ...prev, open: false }))}
+  className="px-4 py-2 rounded-xl bg-slate-800 disabled:opacity-60 text-xs font-semibold text-slate-300"
+>
+  Cancelar
+</button>
+<button
+  disabled={loadingAction === 'confirmDialog'}
+  onClick={async () => {
+    if (confirmDialog.onConfirm) {
+      setLoadingAction('confirmDialog');
+      try {
+        await confirmDialog.onConfirm();
+      } finally {
+        setLoadingAction(null);
+      }
+    }
+    setConfirmDialog((prev) => ({ ...prev, open: false }));
+  }}
+  className={`px-4 py-2 rounded-xl text-xs font-bold text-white disabled:opacity-60 flex items-center gap-1.5 ${
+    confirmDialog.variant === 'danger'
+      ? 'bg-rose-600 hover:bg-rose-500'
+      : 'bg-gradient-to-r from-cyan-500 to-blue-600'
+  }`}
+>
+  {loadingAction === 'confirmDialog' && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+  {confirmDialog.confirmLabel}
+</button>
             </div>
           </div>
         </div>
