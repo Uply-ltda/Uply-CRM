@@ -41,20 +41,49 @@ async function handleUpdateUser(request, context, { session, db }) {
     atualizado_em: new Date().toISOString(),
   };
 
-  if (rawPassword && rawPassword.trim().length > 0) {
-    updateFields.senha_hash = await bcrypt.hash(rawPassword.trim(), 10);
-    updateFields.possui_senha_salva = true;
-  }
 
+  // 1. Atualiza os dados cadastrais básicos (sem mexer na senha aqui)
   const { data: updatedUser, error: updateErr } = await db
     .from('usuarios')
-    .update(updateFields)
+    .update({
+      nome_completo: name,
+      nome_usuario: username,
+      email,
+      telefone: phone || null,
+      cpf: cpf || null,
+      cargo: role,
+      atualizado_em: new Date().toISOString(),
+    })
     .eq('id', id)
     .eq('eliminado', false)
     .select(
       'id, nome_completo, nome_usuario, email, telefone, cpf, cargo, possui_senha_salva, ativo, eliminado, ultimo_login_em'
     )
     .single();
+
+  if (updateErr || !updatedUser) {
+    return NextResponse.json(
+      { error: updateErr?.message || 'Erro ao atualizar dados do usuário.' },
+      { status: 400 }
+    );
+  }
+
+  // 2. Se uma nova senha foi informada, atualiza usando a função segura do banco (compatível com o login)
+  if (rawPassword && rawPassword.trim().length > 0) {
+    const { error: passErr } = await db.rpc('rpc_atualizar_senha', {
+      p_usuario_id: id,
+      p_nova_senha: rawPassword.trim(),
+    });
+
+    if (passErr) {
+      return NextResponse.json(
+        { error: 'Erro ao atualizar a senha do usuário: ' + passErr.message },
+        { status: 400 }
+      );
+    }
+  }
+
+  
 
   if (updateErr || !updatedUser) {
     return NextResponse.json(
